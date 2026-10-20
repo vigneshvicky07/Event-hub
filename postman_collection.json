@@ -1,0 +1,245 @@
+{
+	"info": {
+		"_postman_id": "b18e69dc-171b-4f9e-a894-e83cb4df102a",
+		"name": "EventHub API",
+		"description": "Postman Collection for EventHub Backend API assignment.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Events",
+			"item": [
+				{
+					"name": "1. Create Event",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"PyCon India 2025\",\n  \"venue\": \"NIMHANS Convention Centre, Bangalore\",\n  \"date\": \"2025-09-20\",\n  \"total_seats\": 500,\n  \"available_seats\": 500,\n  \"status\": \"upcoming\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/events/",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"events",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "2. List All Events",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/events/",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"events",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "3. Filter Events by Status",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/events/?status=upcoming",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"events",
+								""
+							],
+							"query": [
+								{
+									"key": "status",
+									"value": "upcoming"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "4. Filter Events by Venue",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/events/?venue=Bangalore",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"events",
+								""
+							],
+							"query": [
+								{
+									"key": "venue",
+									"value": "Bangalore"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "5. Retrieve Event Detail",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/events/1/",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"events",
+								"1",
+								""
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Reservations",
+			"item": [
+				{
+					"name": "1. Successful Reservation (201 Created) [SCREENSHOT 1]",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"event\": 1,\n  \"attendee_name\": \"Priya Sharma\",\n  \"attendee_email\": \"priya@example.com\",\n  \"seats_reserved\": 2\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/reservations/",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"reservations",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "2. Overbooking Failure (400 Bad Request) [SCREENSHOT 2]",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"event\": 1,\n  \"attendee_name\": \"Rahul Verma\",\n  \"attendee_email\": \"rahul@example.com\",\n  \"seats_reserved\": 1000\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/reservations/",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"reservations",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "3. Successful Cancellation (200 OK) [SCREENSHOT 3]",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/reservations/1/cancel/",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"reservations",
+								"1",
+								"cancel",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "4. List Reservations (Filter by event_id)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/reservations/?event_id=1",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"reservations",
+								""
+							],
+							"query": [
+								{
+									"key": "event_id",
+									"value": "1"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://127.0.0.1:8000"
+		}
+	]
+}
