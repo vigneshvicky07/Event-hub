@@ -1,0 +1,41 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: eventhub_db
+    restart: always
+    environment:
+      POSTGRES_DB: eventhub
+      POSTGRES_USER: eventhub_user
+      POSTGRES_PASSWORD: eventhub_password
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U eventhub_user -d eventhub"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+
+  web:
+    build: .
+    container_name: eventhub_api
+    restart: always
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DB_ENGINE=django.db.backends.postgresql
+      - DB_NAME=eventhub
+      - DB_USER=eventhub_user
+      - DB_PASSWORD=eventhub_password
+      - DB_HOST=db
+      - DB_PORT=5432
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

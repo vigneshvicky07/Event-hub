@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -75,11 +76,34 @@ WSGI_APPLICATION = 'eventhub.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.1/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+DB_ENGINE = os.environ.get('DB_ENGINE', 'django.db.backends.postgresql')
+DB_NAME = os.environ.get('DB_NAME', 'eventhub')
+DB_USER = os.environ.get('DB_USER', 'eventhub_user')
+DB_PASSWORD = os.environ.get('DB_PASSWORD', 'eventhub_password')
+DB_HOST = os.environ.get('DB_HOST', '')
+DB_PORT = os.environ.get('DB_PORT', '5432')
+
+if os.environ.get('USE_SQLITE', 'false').lower() in ('true', '1', 'yes') or not DB_HOST or DB_ENGINE == 'django.db.backends.sqlite3':
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
     }
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': DB_ENGINE,
+            'NAME': DB_NAME,
+            'USER': DB_USER,
+            'PASSWORD': DB_PASSWORD,
+            'HOST': DB_HOST,
+            'PORT': DB_PORT,
+        }
+    }
+
+REST_FRAMEWORK = {
+    'EXCEPTION_HANDLER': 'events.exceptions.custom_exception_handler',
 }
 
 

@@ -34,6 +34,18 @@ class EventHubAPITests(APITestCase):
             available_seats=50,
             status="completed",
         )
+        self.event_cancelled = Event.objects.create(
+            title="Cancelled Expo",
+            venue="San Francisco",
+            date=datetime.date(2025, 8, 1),
+            total_seats=100,
+            available_seats=100,
+            status="cancelled",
+        )
+
+    # =========================================================================
+    # Event Validations & Exceptions
+    # =========================================================================
 
     def test_create_event_success(self):
         url = reverse("event-list")
@@ -65,11 +77,68 @@ class EventHubAPITests(APITestCase):
         self.assertIn("non_field_errors", response.data)
         self.assertIn("available_seats cannot exceed total_seats.", response.data["non_field_errors"])
 
+    def test_create_event_validation_blank_title(self):
+        url = reverse("event-list")
+        payload = {
+            "title": "   ",
+            "venue": "Convention Hall",
+            "date": "2025-11-10",
+            "total_seats": 100,
+            "available_seats": 100,
+        }
+        response = self.client.post(url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("title", response.data)
+
+    def test_create_event_validation_blank_venue(self):
+        url = reverse("event-list")
+        payload = {
+            "title": "DevFest 2025",
+            "venue": "   ",
+            "date": "2025-11-10",
+            "total_seats": 100,
+            "available_seats": 100,
+        }
+        response = self.client.post(url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("venue", response.data)
+
+    def test_create_event_validation_negative_total_seats(self):
+        url = reverse("event-list")
+        payload = {
+            "title": "DevFest 2025",
+            "venue": "Auditorium",
+            "date": "2025-11-10",
+            "total_seats": -10,
+            "available_seats": 0,
+        }
+        response = self.client.post(url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_update_event_cannot_reduce_total_seats_below_booked(self):
+        # Book 5 seats
+        Reservation.objects.create(
+            event=self.event1,
+            attendee_name="Alice",
+            attendee_email="alice@example.com",
+            seats_reserved=5,
+            status="confirmed",
+        )
+        self.event1.available_seats = 495
+        self.event1.save()
+
+        # Try updating total_seats to 3 (less than 5 booked)
+        url = reverse("event-detail", args=[self.event1.id])
+        response = self.client.patch(url, {"total_seats": 3, "available_seats": 0}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("non_field_errors", response.data)
+        self.assertTrue(any("already booked" in err for err in response.data["non_field_errors"]))
+
     def test_list_all_events(self):
         url = reverse("event-list")
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 3)
+        self.assertEqual(len(response.data), 4)
 
     def test_filter_events_by_status(self):
         url = reverse("event-list")
@@ -84,6 +153,10 @@ class EventHubAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["venue"], "NIMHANS Convention Centre, Bangalore")
+
+    # =========================================================================
+    # Reservation Validations & Exceptions
+    # =========================================================================
 
     def test_create_reservation_success_and_seats_deducted(self):
         url = reverse("reservation-list")
@@ -119,7 +192,31 @@ class EventHubAPITests(APITestCase):
         self.assertIn("seats_reserved", response.data)
         self.assertIn("Must reserve at least 1 seat.", response.data["seats_reserved"])
 
-    def test_reservation_validation_inactive_event(self):
+    def test_reservation_validation_blank_name(self):
+        url = reverse("reservation-list")
+        payload = {
+            "event": self.event1.id,
+            "attendee_name": "   ",
+            "attendee_email": "priya@example.com",
+            "seats_reserved": 1,
+        }
+        response = self.client.post(url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("attendee_name", response.data)
+
+    def test_reservation_validation_invalid_email(self):
+        url = reverse("reservation-list")
+        payload = {
+            "event": self.event1.id,
+            "attendee_name": "Priya Sharma",
+            "attendee_email": "not-an-email",
+            "seats_reserved": 1,
+        }
+        response = self.client.post(url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("attendee_email", response.data)
+
+    def test_reservation_validation_completed_event(self):
         url = reverse("reservation-list")
         payload = {
             "event": self.event_completed.id,
@@ -131,6 +228,31 @@ class EventHubAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("non_field_errors", response.data)
         self.assertIn("Cannot reserve seats for a completed event.", response.data["non_field_errors"])
+
+    def test_reservation_validation_cancelled_event(self):
+        url = reverse("reservation-list")
+        payload = {
+            "event": self.event_cancelled.id,
+            "attendee_name": "Priya Sharma",
+            "attendee_email": "priya@example.com",
+            "seats_reserved": 1,
+        }
+        response = self.client.post(url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("non_field_errors", response.data)
+        self.assertIn("Cannot reserve seats for a cancelled event.", response.data["non_field_errors"])
+
+    def test_reservation_validation_nonexistent_event(self):
+        url = reverse("reservation-list")
+        payload = {
+            "event": 99999,
+            "attendee_name": "Priya Sharma",
+            "attendee_email": "priya@example.com",
+            "seats_reserved": 1,
+        }
+        response = self.client.post(url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("event", response.data)
 
     def test_overbooking_attempt_returns_400(self):
         self.event1.available_seats = 1
@@ -151,8 +273,11 @@ class EventHubAPITests(APITestCase):
         self.event1.refresh_from_db()
         self.assertEqual(self.event1.available_seats, 1)
 
+    # =========================================================================
+    # Cancellation Validations & Exceptions
+    # =========================================================================
+
     def test_cancel_reservation_restores_seats(self):
-        # Create reservation first
         res_url = reverse("reservation-list")
         payload = {
             "event": self.event1.id,
@@ -192,6 +317,16 @@ class EventHubAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data, {"error": "Already cancelled."})
 
+    def test_cancel_nonexistent_reservation_returns_404(self):
+        cancel_url = reverse("reservation-cancel", args=[99999])
+        response = self.client.post(cancel_url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.data, {"error": "Reservation not found."})
+
+    # =========================================================================
+    # Filtering & Middleware Logging
+    # =========================================================================
+
     def test_filter_reservations_by_event_id(self):
         res1 = Reservation.objects.create(
             event=self.event1,
@@ -213,6 +348,12 @@ class EventHubAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["id"], res1.id)
+
+    def test_filter_reservations_invalid_event_id_param(self):
+        url = reverse("reservation-list")
+        response = self.client.get(url, {"event_id": "invalid_abc"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
 
     def test_middleware_logging(self):
         with self.assertLogs("events.middleware", level="INFO") as cm:
