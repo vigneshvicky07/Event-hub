@@ -4,6 +4,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from rest_framework import serializers
 from .models import Event, Reservation
+from .cache_utils import invalidate_events_cache
 
 
 class EventSerializer(serializers.ModelSerializer):
@@ -137,4 +138,9 @@ class ReservationSerializer(serializers.ModelSerializer):
             event.save(update_fields=['available_seats'])
 
             validated_data['event'] = event
-            return Reservation.objects.create(**validated_data)
+            reservation = Reservation.objects.create(**validated_data)
+
+            # Invalidate Redis cache for this event and all event listings
+            invalidate_events_cache(event_id=event.id)
+
+            return reservation

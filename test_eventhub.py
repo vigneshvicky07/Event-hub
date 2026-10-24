@@ -267,6 +267,49 @@ def test_cancellation_and_filters():
     print("✓ GET /api/reservations/?event_id=abc (handled gracefully) passed")
 
 
+def test_caching_and_invalidation():
+    print("\n--- 4. Testing Redis / Memory Caching & Invalidation ---")
+    client = Client()
+    event1_id = TEST_STATE["event1_id"]
+
+    # 1. Fetch event detail -> populates cache
+    resp1 = client.get(f'/api/events/{event1_id}/')
+    assert resp1.status_code == 200
+    assert resp1.json()["available_seats"] == 500
+    print("✓ Event detail fetched and cached")
+
+    # 2. Create reservation -> verifies cache is invalidated
+    resp2 = client.post(
+        '/api/reservations/',
+        data=json.dumps({
+            "event": event1_id,
+            "attendee_name": "Cache User",
+            "attendee_email": "cacheuser@example.com",
+            "seats_reserved": 5
+        }),
+        content_type='application/json'
+    )
+    assert resp2.status_code == 201
+    res_id = resp2.json()["id"]
+
+    # 3. Read event detail again -> must reflect new 495 available seats
+    resp3 = client.get(f'/api/events/{event1_id}/')
+    assert resp3.status_code == 200
+    assert resp3.json()["available_seats"] == 495
+    assert resp3.json()["reservations_count"] == 1
+    print("✓ Cache invalidated on reservation creation (reflects 495 available seats)")
+
+    # 4. Cancel reservation -> verifies cache is invalidated again
+    resp4 = client.post(f'/api/reservations/{res_id}/cancel/')
+    assert resp4.status_code == 200
+
+    resp5 = client.get(f'/api/events/{event1_id}/')
+    assert resp5.status_code == 200
+    assert resp5.json()["available_seats"] == 500
+    assert resp5.json()["reservations_count"] == 0
+    print("✓ Cache invalidated on cancellation (reflects restored 500 available seats)")
+
+
 if __name__ == '__main__':
     print("==================================================")
     print("🚀 Running EventHub Comprehensive Test Suite")
@@ -275,6 +318,7 @@ if __name__ == '__main__':
         test_event_validations_and_api()
         test_reservation_validations_and_api()
         test_cancellation_and_filters()
+        test_caching_and_invalidation()
         print("\n==================================================")
         print("🎉 ALL TESTS PASSED SUCCESSFULLY! (100% Verified)")
         print("==================================================")

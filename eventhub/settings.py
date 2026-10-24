@@ -102,8 +102,45 @@ else:
         }
     }
 
+REDIS_HOST = os.environ.get('REDIS_HOST', '')
+REDIS_PORT = os.environ.get('REDIS_PORT', '6379')
+USE_REDIS = os.environ.get('USE_REDIS', 'false').lower() in ('true', '1', 'yes')
+
+if REDIS_HOST or USE_REDIS:
+    redis_host = REDIS_HOST or 'redis'
+    CACHES = {
+        'default': {
+            'BACKEND': 'django_redis.cache.RedisCache',
+            'LOCATION': f'redis://{redis_host}:{REDIS_PORT}/1',
+            'OPTIONS': {
+                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+                'SOCKET_CONNECT_TIMEOUT': 3,
+                'SOCKET_TIMEOUT': 3,
+                'IGNORE_EXCEPTIONS': True,
+            },
+            'KEY_PREFIX': 'eventhub',
+            'TIMEOUT': 300,
+        }
+    }
+else:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'eventhub-local-cache',
+            'TIMEOUT': 300,
+        }
+    }
+
 REST_FRAMEWORK = {
     'EXCEPTION_HANDLER': 'events.exceptions.custom_exception_handler',
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '120/minute',
+        'user': '1000/minute',
+    },
 }
 
 

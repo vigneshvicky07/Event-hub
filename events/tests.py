@@ -5,11 +5,13 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from django.core.cache import cache
 from .models import Event, Reservation
 
 
 class EventHubAPITests(APITestCase):
     def setUp(self):
+        cache.clear()
         self.event1 = Event.objects.create(
             title="PyCon India 2025",
             venue="NIMHANS Convention Centre, Bangalore",
@@ -359,3 +361,56 @@ class EventHubAPITests(APITestCase):
         with self.assertLogs("events.middleware", level="INFO") as cm:
             self.client.get(reverse("event-list"))
         self.assertTrue(any("GET /api/events/ - 200 -" in log_msg for log_msg in cm.output))
+
+    # =========================================================================
+    # Redis / Memory Caching & Invalidation Tests
+    # =========================================================================
+
+    def test_event_caching_and_invalidation_on_reservation(self):
+        event_url = reverse("event-detail", args=[self.event1.id])
+
+        # Initial fetch -> populates cache
+        res1 = self.client.get(event_url)
+        self.assertEqual(res1.status_code, status.HTTP_200_OK)
+        self.assertEqual(res1.data["available_seats"], 500)
+
+        # Create reservation -> invalidates cache
+        payload = {
+            "event": self.event1.id,
+            "attendee_name": "Cache Tester",
+            "attendee_email": "cache@example.com",
+            "seats_reserved": 10,
+        }
+        res2 = self.client.post(reverse("reservation-list"), payload, format="json")
+        self.assertEqual(res2.status_code, status.HTTP_201_CREATED)
+
+        # Subsequent fetch -> returns freshly invalidated data with 490 available seats
+        res3 = self.client.get(event_url)
+        self.assertEqual(res3.status_code, status.HTTP_200_OK)
+        self.assertEqual(res3.data["available_seats"], 490)
+        self.assertEqual(res3.data["reservations_count"], 1)
+
+    def test_event_caching_and_invalidation_on_cancellation(self):
+        # Create reservation
+        payload = {
+            "event": self.event1.id,
+            "attendee_name": "Cancel Tester",
+            "attendee_email": "canceltester@example.com",
+            "seats_reserved": 4,
+        }
+        create_res = self.client.post(reverse("reservation-list"), payload, format="json")
+        reservation_id = create_res.data["id"]
+
+        event_url = reverse("event-detail", args=[self.event1.id])
+        res_before = self.client.get(event_url)
+        self.assertEqual(res_before.data["available_seats"], 496)
+
+        # Cancel reservation -> invalidates cache
+        cancel_url = reverse("reservation-cancel", args=[reservation_id])
+        cancel_res = self.client.post(cancel_url)
+        self.assertEqual(cancel_res.status_code, status.HTTP_200_OK)
+
+        # Subsequent fetch -> returns freshly restored 500 seats
+        res_after = self.client.get(event_url)
+        self.assertEqual(res_after.data["available_seats"], 500)
+        self.assertEqual(res_after.data["reservations_count"], 0)
