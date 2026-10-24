@@ -2,7 +2,7 @@
 	"info": {
 		"_postman_id": "b18e69dc-171b-4f9e-a894-e83cb4df102a",
 		"name": "EventHub API",
-		"description": "Postman Collection for EventHub Backend API assignment.",
+		"description": "EventHub Backend API collection.\n\nHow to use:\n1. Import this file into Postman.\n2. Run requests in order under Events, then Reservations.\n3. Create Event / Successful Reservation auto-save {{eventId}} and {{reservationId}}.\n4. baseUrl defaults to http://127.0.0.1:8000 (Docker).",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"item": [
@@ -11,6 +11,21 @@
 			"item": [
 				{
 					"name": "1. Create Event",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const data = pm.response.json();",
+									"    pm.collectionVariables.set('eventId', data.id);",
+									"    console.log('Saved eventId =', data.id);",
+									"}"
+								]
+							}
+						}
+					],
 					"request": {
 						"method": "POST",
 						"header": [
@@ -25,15 +40,10 @@
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/events/",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"events",
-								""
-							]
-						}
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "events", ""]
+						},
+						"description": "Creates an event and saves its id into {{eventId}} for later requests."
 					},
 					"response": []
 				},
@@ -44,14 +54,8 @@
 						"header": [],
 						"url": {
 							"raw": "{{baseUrl}}/api/events/",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"events",
-								""
-							]
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "events", ""]
 						}
 					},
 					"response": []
@@ -63,14 +67,8 @@
 						"header": [],
 						"url": {
 							"raw": "{{baseUrl}}/api/events/?status=upcoming",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"events",
-								""
-							],
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "events", ""],
 							"query": [
 								{
 									"key": "status",
@@ -88,14 +86,8 @@
 						"header": [],
 						"url": {
 							"raw": "{{baseUrl}}/api/events/?venue=Bangalore",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"events",
-								""
-							],
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "events", ""],
 							"query": [
 								{
 									"key": "venue",
@@ -112,17 +104,11 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{baseUrl}}/api/events/1/",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"events",
-								"1",
-								""
-							]
-						}
+							"raw": "{{baseUrl}}/api/events/{{eventId}}/",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "events", "{{eventId}}", ""]
+						},
+						"description": "Uses {{eventId}} from Create Event. Run Create Event first."
 					},
 					"response": []
 				}
@@ -133,6 +119,21 @@
 			"item": [
 				{
 					"name": "1. Successful Reservation (201 Created) [SCREENSHOT 1]",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const data = pm.response.json();",
+									"    pm.collectionVariables.set('reservationId', data.id);",
+									"    console.log('Saved reservationId =', data.id);",
+									"}"
+								]
+							}
+						}
+					],
 					"request": {
 						"method": "POST",
 						"header": [
@@ -143,19 +144,14 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"event\": 1,\n  \"attendee_name\": \"Priya Sharma\",\n  \"attendee_email\": \"priya@example.com\",\n  \"seats_reserved\": 2\n}"
+							"raw": "{\n  \"event\": {{eventId}},\n  \"attendee_name\": \"Priya Sharma\",\n  \"attendee_email\": \"priya@example.com\",\n  \"seats_reserved\": 2\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/reservations/",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"reservations",
-								""
-							]
-						}
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "reservations", ""]
+						},
+						"description": "Books 2 seats on {{eventId}}. Saves {{reservationId}} for cancel. Run Create Event first."
 					},
 					"response": []
 				},
@@ -171,19 +167,14 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"event\": 1,\n  \"attendee_name\": \"Rahul Verma\",\n  \"attendee_email\": \"rahul@example.com\",\n  \"seats_reserved\": 1000\n}"
+							"raw": "{\n  \"event\": {{eventId}},\n  \"attendee_name\": \"Rahul Verma\",\n  \"attendee_email\": \"rahul@example.com\",\n  \"seats_reserved\": 1000\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/reservations/",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"reservations",
-								""
-							]
-						}
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "reservations", ""]
+						},
+						"description": "Expect 400 with Only N seat(s) available."
 					},
 					"response": []
 				},
@@ -193,18 +184,11 @@
 						"method": "POST",
 						"header": [],
 						"url": {
-							"raw": "{{baseUrl}}/api/reservations/1/cancel/",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"reservations",
-								"1",
-								"cancel",
-								""
-							]
-						}
+							"raw": "{{baseUrl}}/api/reservations/{{reservationId}}/cancel/",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "reservations", "{{reservationId}}", "cancel", ""]
+						},
+						"description": "Cancels {{reservationId}} from Successful Reservation. Expect status cancelled."
 					},
 					"response": []
 				},
@@ -214,19 +198,13 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{baseUrl}}/api/reservations/?event_id=1",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"reservations",
-								""
-							],
+							"raw": "{{baseUrl}}/api/reservations/?event_id={{eventId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "reservations", ""],
 							"query": [
 								{
 									"key": "event_id",
-									"value": "1"
+									"value": "{{eventId}}"
 								}
 							]
 						}
@@ -240,6 +218,14 @@
 		{
 			"key": "baseUrl",
 			"value": "http://127.0.0.1:8000"
+		},
+		{
+			"key": "eventId",
+			"value": "20"
+		},
+		{
+			"key": "reservationId",
+			"value": "10"
 		}
 	]
 }

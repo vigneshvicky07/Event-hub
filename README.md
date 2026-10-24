@@ -86,6 +86,7 @@ Event-hub/
 ├── .env.example                # Environment variables template
 ├── requirements.txt            # Python dependencies (Django, DRF, psycopg2, django-redis)
 ├── postman_collection.json     # Importable Postman test collection
+├── docs/screenshots/           # API testing reference screenshots (Postman/Insomnia)
 ├── test_eventhub.py            # Standalone API, validation & caching verification suite
 ├── manage.py
 ├── README.md
@@ -250,6 +251,26 @@ All routes are served under `/api/`.
 
 ---
 
+## Design Decisions
+
+The core design choice was to treat seat availability as a **concurrency-sensitive write path** and event browsing as a **cacheable read path**.
+
+On every reservation create and cancel, EventHub locks the related `Event` row with `select_for_update()` inside `transaction.atomic()`. That prevents two clients from booking the last seat at the same time—something a simple `available_seats -= n` update would allow under load. After a successful write, Redis event list/detail caches are invalidated so the next browse request always sees the correct seat counts.
+
+Additional decisions that shaped the API:
+
+| Decision | Why |
+| :--- | :--- |
+| Denormalized `available_seats` on `Event` | Fast availability checks without aggregating reservations on every read |
+| `select_for_update` inside `transaction.atomic` on create/cancel | Prevents last-seat double-book under concurrent requests |
+| Redis cache for GET events list/detail + invalidate on writes | Speeds up the read-heavy browse path while keeping seat counts fresh |
+| Same Redis backend for DRF throttling | Rate-limits anonymous traffic (120/min) without extra infrastructure |
+| Cancel as `POST .../cancel/` (not `DELETE`) | Soft cancel with seat restore; returns idempotent 400 if already cancelled |
+| SQLite + LocMem when Docker/Redis are absent | Local development and CI still work without containers |
+| Custom DRF exception handler | Uniform JSON error bodies instead of HTML stack traces |
+
+---
+
 ## Running Automated Tests
 
 ### 1. Django Test Runner (25 Unit & Integration Tests)
@@ -274,7 +295,9 @@ python test_eventhub.py
 
 ## Postman Guide (Screenshots Checklist)
 
-Import the included [`postman_collection.json`](postman_collection.json) into Postman.
+Import the included [`postman_collection.json`](postman_collection.json) into Postman (or Insomnia). The collection uses `{{baseUrl}}`, `{{eventId}}`, and `{{reservationId}}` — run **Create Event** then **Successful Reservation** first so IDs auto-save.
+
+Reference screenshots live in [`docs/screenshots/`](docs/screenshots/).
 
 ### Prerequisite: Seed / Verify Initial Event
 Ensure `PyCon India 2025` is present (`POST http://localhost:8000/api/events/`):
@@ -289,22 +312,36 @@ Ensure `PyCon India 2025` is present (`POST http://localhost:8000/api/events/`):
 }
 ```
 
+![Create Event 201](docs/screenshots/01-create-event-201.png)
+
+### Events — List & Filters
+
+![List All Events 200](docs/screenshots/02-list-all-events-200.png)
+
+![Filter Events by Status 200](docs/screenshots/03-filter-events-by-status-200.png)
+
+![Filter Events by Venue 200](docs/screenshots/04-filter-events-by-venue-200.png)
+
+![Retrieve Event Detail 200](docs/screenshots/05-retrieve-event-detail-200.png)
+
 ---
 
 ### Screenshot 1: Successful Reservation (201 Created)
 - **Method**: `POST`
 - **URL**: `http://localhost:8000/api/reservations/`
 - **Headers**: `Content-Type: application/json`
-- **Body (raw JSON)**:
+- **Body (raw JSON)** — use the real `event` id from Create Event (e.g. `21`), not a hardcoded `1`:
   ```json
   {
-    "event": 1,
+    "event": 21,
     "attendee_name": "Priya Sharma",
     "attendee_email": "priya@example.com",
     "seats_reserved": 2
   }
   ```
 - **Response**: `201 Created` with status `"confirmed"`.
+
+![Successful Reservation 201](docs/screenshots/06-successful-reservation-201.png)
 
 ---
 
@@ -315,7 +352,7 @@ Ensure `PyCon India 2025` is present (`POST http://localhost:8000/api/events/`):
 - **Body (raw JSON)**:
   ```json
   {
-    "event": 1,
+    "event": 21,
     "attendee_name": "Rahul Verma",
     "attendee_email": "rahul@example.com",
     "seats_reserved": 1000
@@ -323,12 +360,20 @@ Ensure `PyCon India 2025` is present (`POST http://localhost:8000/api/events/`):
   ```
 - **Response**: `400 Bad Request` with `{"non_field_errors": ["Only 498 seat(s) available."]}`.
 
+![Overbooking Failure 400](docs/screenshots/07-overbooking-failure-400.png)
+
 ---
 
 ### Screenshot 3: Successful Cancellation (200 OK)
 - **Method**: `POST`
-- **URL**: `http://localhost:8000/api/reservations/1/cancel/`
+- **URL**: `http://localhost:8000/api/reservations/{{reservationId}}/cancel/` (e.g. `/api/reservations/11/cancel/`)
 - **Headers**: None
 - **Body**: None
 - **Response**: `200 OK` with status `"cancelled"`.
 - *Note: Subsequent calls return `400 Bad Request` with `{"error": "Already cancelled."}`.*
+
+![Successful Cancellation 200](docs/screenshots/08-successful-cancellation-200.png)
+
+### List Reservations (Filter by event_id)
+
+![List Reservations by event_id 200](docs/screenshots/09-list-reservations-by-event-id-200.png)
